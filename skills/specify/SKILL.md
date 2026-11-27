@@ -366,8 +366,9 @@ round, say in your report that those edits were not reviewed.
    them** — do not paste a column word from this skill. A card arriving here is usually *already*
    in the parking lane its `<task stage="…">` names, so "move the card to Approved" is a no-op
    question, and a Space owner can rename that column to anything (`Ready for Build`, `Approved`,
-   `Groomed` — all the same `slug`). Name the lane the card is in and the destination the arrows lead
-   to, both from the rows. Keep the `id` spelling the board matches on:
+   `Groomed` — all the same `slug`). Name the lane the card is in, and take the destination as **the
+   next stage row after it** (rows come back in board order; the rows carry no edge data, so treat it
+   as likely and let `mark_done`'s answer be the fact). Keep the `id` spelling the board matches on:
 
    ```
    ask({

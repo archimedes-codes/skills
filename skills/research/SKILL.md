@@ -236,23 +236,34 @@ ask({
     options: [
       { label: "Write the report and attach it to the card — done (recommended)" },
       { label: "Just talk — stop and let me react to the findings" },
-      { label: "Move to Approved — deliver, then hand the card to a fresh Session" },
+      { label: "Hand it forward — deliver, then move the card to \"<real label of the next column>\"" },
       { label: "Targeted deep-dive on specific gaps" },
       { label: "Add a research dimension" },
       { label: "Reframe the question" }
     ],
     multi: true,
-    description: "**Write the report:** the report is the deliverable — it goes to docs/research/, its path goes on the card, and the session is handed to you for review. Planning is a later session's job.\n**Just talk:** stop. The findings stay in this session and you drive — nothing is written.\n**Move to Approved:** deliver, then hand the card to a fresh Session. Only offered when a `<task>` block was found.\n**Deep-dive / Add dimension / Reframe:** more research."
+    description: "**Write the report:** the report is the deliverable — it goes to docs/research/, its path goes on the card, and the session is handed to you for review. Planning is a later session's job.\n**Just talk:** stop. The findings stay in this session and you drive — nothing is written.\n**Hand it forward:** deliver, then hand the card to a fresh Session. Only offered when a `<task>` block was found.\n**Deep-dive / Add dimension / Reframe:** more research."
   }]
 })
 ```
 
 **Compose rules:**
-- **"Move to Approved" only when a `<task id="tsk_…">` block was found** — an option that cannot run is
+- **Name that third option from the board, not from this file.** Call
+  `list_board(space_path)` — `space_path` is your working directory, pass your cwd, do not
+  reconstruct it — and take as the destination **the next stage row after the card's current one**
+  (rows come back in board order, and an unconfigured board's next step is `sort_order + 1`); the
+  card's own stage is in the `<task stage="…">` attribute. The rows carry no edge data, so this is the
+  *likely* destination, not a proven one — say "hand it forward" and let `mark_done`'s answer name
+  where it actually landed. Never print the word "Approved" at the user — column
+  **labels are owner-editable per Space** (the `approved` slug has shipped as "Approved", "Ready for
+  Build", "Groomed"), and the option must say what the user will actually see. If the card's stage is
+  already the last parking lane before work starts, name the destination the arrows lead to anyway —
+  do not turn the option into "move the card to where it already is".
+- **"Hand it forward" only when a `<task id="tsk_…">` block was found** — an option that cannot run is
   a dead control. It composes with "Write the report" (delivering is a prerequisite, not an alternative).
 - **No card → drop "to the card" from the first option's label** ("Write the report — done"), since the
   attach step cannot run; Phase 5's no-card branch covers it.
-- **"Move to Approved" does NOT compose with "Just talk"** — that continues work in *this* session; the
+- **"Hand it forward" does NOT compose with "Just talk"** — that continues work in *this* session; the
   move ends it. If both come back selected, ask once which was meant. Do not resolve it by picking one
   silently.
 - **"Just talk" is a real answer, not a stall.** It writes nothing. Do not quietly write the report, and
@@ -274,7 +285,7 @@ the session. Nothing is loaded after it.
 |---|---|
 | **Write the report and attach it** (default) | 1. Write the report to `docs/research/<descriptive-name>.md` (front-matter below). **Do NOT re-print it — the draft was already shown.** 2. Make sure git tracks it (`git ls-files --error-unmatch <path>`; add it on the working branch if not). 3. Attach its **path** to the card (location attachment: the body is the repo path, not the report's contents) and set `spec_path` to the same path — [Durable Capture](guides/guide-durable-capture.md), key `research`. 4. Offer the tracker mirror — the ask in [Durable Capture](guides/guide-durable-capture.md); skip when no tracker was found. 5. **Clear the todo list**, state the report path in one line, then `mark_done`. |
 | **Just talk** | **Stop.** Say one line — findings are above, I'm here. Write nothing. The user drives from here. No `mark_done`: the session is not finished, the user is still reacting. |
-| **Move to Approved** | Deliver first (steps 1–4 above). Approved is **forward**, and forward is `mark_done`, not `move_task` — so load `move-task` for the artifact checkpoint, attach everything and verify with `get_task`, then **`mark_done`**: that claim *is* the forward move. Read its answer: it names the column the card advanced to, or says the column is not automatic and a person moves it (the card carries an amber bell). Do **not** `move_task` to Approved — a forward `move_task` is refused even on a default board. **Then stop — do not load `specify` or `implement`.** |
+| **Hand it forward** | Deliver first (steps 1–4 above). The next column is **forward**, and forward is `mark_done`, not `move_task` — so load `move-task` for the artifact checkpoint, attach everything and verify with `get_task`, then **`mark_done`**: that claim *is* the forward move. Read its answer: it names the column the card advanced to, or says the column is not automatic and a person moves it (the card carries an amber bell). Tell the user the destination by the **label from `list_board`**, never by a slug or the word "Approved". Do **not** `move_task` to it — a forward `move_task` is refused even on a default board. **Then stop — do not load `specify` or `implement`.** |
 | **Targeted deep-dive** | Dispatch more researchers on the named gaps → re-synthesise → Phase 4 |
 | **Add a dimension** | Dispatch a new angle → re-synthesise → Phase 4 |
 | **Reframe** | Back to Phase 0 with the revised question |

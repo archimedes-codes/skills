@@ -371,9 +371,14 @@ Fix issues (max 3 rounds).
    })
    ```
 
-   On **Move to Approved**: that skill attaches the artifacts, reads the Approved slug off
-   `list_board`, moves the card, verifies with `get_task`, then tells the user to archive
-   this session and click the card's arrow pill on the Tasks board. **Then stop — do not
+   On **Move to Approved**: that skill attaches the artifacts and verifies with `get_task`.
+   Approved is **forward**, and forward is not `move_task`'s door — a model's forward
+   `move_task` is refused (even on a default, unconfigured board) and its refusal names
+   `mark_done`. So the hand-off is **`mark_done`**: it flags this Session as done and, if the
+   column it points at is automatic, advances the card and launches the next Session itself.
+   Read its answer and report what it said: either the card advanced (then say so, and that a
+   fresh Session holds the card's artifacts), or the column is not automatic and a person
+   moves the card or clicks its arrow pill on the Tasks board. **Then stop — do not
    load `implement`.** The whole point is that implementation happens in a fresh Session
    with the card's artifacts, not in this session's leftover context.
 

@@ -91,8 +91,19 @@ not cosmetic. Conventional names: `spec`, `research`, `notes`, `design`.
 
 Settling a design is not a stage transition you get to invent. And know the real
 semantics before refusing or performing one for the wrong reason: a **model** `move_task`
-fires **no** `on_enter` hook and no compaction — only a human drag runs the full verb. So
-a move is safe but inert, and "moving it triggers the launch skill" is false.
+fires **no** `on_enter` hook and no compaction. A human **drag** does the compaction boost
+and nothing else — its live half is that boost alone. The full verb (move, then start a
+Session on the card) lives behind the card's **arrow pill**, its detail-dialog buttons, and
+the chain runtime that acts on a `mark_done` advance. So a `move_task` is indeed inert, but
+"moving it triggers the launch skill" is false for a drag as well as for a model, and the
+pill is the door — not the drag.
+
+Also: `move_task` is **not** the door for a forward move. A model's forward `move_task` is
+refused — on a default, never-configured board too, because the rule is graph reachability
+with a `sort_order + 1` fallback — and the refusal names `mark_done`, the only forward door
+(see `move-task`). "Don't move the card unless asked" therefore still stands, and it stands
+for `mark_done` as well: if the user did not ask for the hand-off, write the artifact, say
+where it is, and stop.
 
 ## Subagents cannot touch the board
 

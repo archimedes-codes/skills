@@ -263,15 +263,18 @@ ask({
 
 ## Phase 5: Deliver (after `ask()` responds)
 
-Every path below ends the same way once its writes are done: **call `mark_done`** — it takes no
-arguments, flags this Session as finished, and hands it to a person for review. It is the last call of
+Every path below ends the same way once its writes are done: **call `mark_done`** — it flags this
+Session as finished, hands it to a person for review, and **it is the only way this card moves
+forward**. Its one optional argument `outcome` names which transition to follow when this column has
+more than one wired out of it; leave it out to take the first. Read its answer — it names the column
+the card advanced to, or says plainly why the card stayed where it was. It is the last call of
 the session. Nothing is loaded after it.
 
 | Choice | Action |
 |---|---|
 | **Write the report and attach it** (default) | 1. Write the report to `docs/research/<descriptive-name>.md` (front-matter below). **Do NOT re-print it — the draft was already shown.** 2. Make sure git tracks it (`git ls-files --error-unmatch <path>`; add it on the working branch if not). 3. Attach its **path** to the card (location attachment: the body is the repo path, not the report's contents) and set `spec_path` to the same path — [Durable Capture](guides/guide-durable-capture.md), key `research`. 4. Offer the tracker mirror — the ask in [Durable Capture](guides/guide-durable-capture.md); skip when no tracker was found. 5. **Clear the todo list**, state the report path in one line, then `mark_done`. |
 | **Just talk** | **Stop.** Say one line — findings are above, I'm here. Write nothing. The user drives from here. No `mark_done`: the session is not finished, the user is still reacting. |
-| **Move to Approved** | Deliver first (steps 1–4 above). Then load `move-task`: attach artifacts, read the Approved slug off `list_board`, `move_task`, verify with `get_task`, tell the user to **archive this session** and click the card's **arrow pill**. **Then `mark_done` and stop — do not load `specify` or `implement`.** |
+| **Move to Approved** | Deliver first (steps 1–4 above). Approved is **forward**, and forward is `mark_done`, not `move_task` — so load `move-task` for the artifact checkpoint, attach everything and verify with `get_task`, then **`mark_done`**: that claim *is* the forward move. Read its answer: it names the column the card advanced to, or says the column is not automatic and a person moves it (the card carries an amber bell). Do **not** `move_task` to Approved — a forward `move_task` is refused even on a default board. **Then stop — do not load `specify` or `implement`.** |
 | **Targeted deep-dive** | Dispatch more researchers on the named gaps → re-synthesise → Phase 4 |
 | **Add a dimension** | Dispatch a new angle → re-synthesise → Phase 4 |
 | **Reframe** | Back to Phase 0 with the revised question |
@@ -395,8 +398,11 @@ task-level breakdown, and `specify` is its only writer, in its own session. What
 
 Do not load `specify` or `implement` from here, whatever the scope. If the user asks for a plan or waves
 now, say the design is on the card and the card's arrow pill starts a session that plans it; if they want
-a card move, offer `move-task` (read the destination slug off `list_board`, `move_task`, verify with
-`get_task`, tell them to archive this session and click the pill), then `mark_done`.
+a card move, offer `move-task` — but a move **forward** out of this column is not `move_task`'s door:
+that verb is refused for forward moves and its refusal names `mark_done`. So a forward hand-off is the
+`mark_done` you are about to call anyway (read its answer: it names where the card went, or says a
+person moves it), and `move_task` is only for a backward or sideways move, which starts nothing. Then
+`mark_done`.
 
 **No card:** write the design doc (steps 1–2), say in one line that nothing is attached because no card
 exists, and `mark_done`.
@@ -420,8 +426,10 @@ starting that session from the card. Only an explicit confirmation from the user
 leads to implementation work. This is the one rule that survives every restructuring of this skill,
 because every failure mode it prevents is a session that got confident and kept going.
 
-`mark_done` is where this session ends. It takes no arguments, flags the Session as done, and hands it to
-a person for review. It is called **after** the writes, never instead of them, and never on a branch that
+`mark_done` is where this session ends. It flags the Session as done and hands it to a person for
+review, and it is the only door a **forward** card move goes through. Its one optional argument
+`outcome` names which transition to follow when the column has more than one; omit it to take the
+first. It is called **after** the writes, never instead of them, and never on a branch that
 wrote nothing ("just talk", a design abandoned before approval).
 
 ---

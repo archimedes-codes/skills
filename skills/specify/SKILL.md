@@ -336,7 +336,14 @@ If you need to read the whole codebase to be sure, do it. The plan will be execu
 
 `<resolved doc path>` is the doc's scratch file in standalone mode, or the invocation's `target:` in consumed mode.
 
-Fix issues (max 3 rounds).
+**Fix issues (max 3 rounds).** Round 1 is a full review. A round *after* a fix pass is a different
+job, and saying so is what makes it useful: scope it to **verify each fix against the tree** and
+**check the fold-in did not introduce a new error** — an edit made to resolve a finding is itself an
+unverified edit until a round has seen it. In practice a second round finds errors the fixes created
+(a sentence left behind now contradicting the step it describes, a count corrected in one place and not
+its twin, a claim that was true of the old text). Do not re-litigate findings the round already
+resolved, and do not spend the final round on fixes that then go unvetted: if you edit after the last
+round, say in your report that those edits were not reviewed.
 
 **Standalone mode only — attach the plan first.** Plans are not committed; they are card artifacts. Attach the whole document before anything else: `write_artifact(task_id, key: "plan", markdown: <the whole doc as written, spec section included>)`, then `get_artifact` to confirm it landed. The card id is the doc's `task:` key, or the `<task>` block forwarded to you. Re-attach after every reviewer round. The upsert replaces the whole artifact, so if the card already holds a `plan` from an earlier run, read it with `get_artifact` first and refine it rather than replacing it. Because you write spec and plan into one file, the `plan` artifact is the copy that carries both: attach the whole document, not the plan section alone. If an earlier `research` run attached a `spec` or `research` artifact, leave those keys alone: they are the evidence trail, and `plan` is the deliverable. Do not collapse two keys into one. Do not set `spec_path` to the scratch file; if the card's `spec_path` already names a `docs/roadmap/` path, clear it with `edit_task(task_id, spec_path: null)`. No `write_artifact` tool, or no card id → say once that the plan exists only at `<scratch>/plan.md` on this machine, and continue.
 
@@ -355,15 +362,20 @@ Fix issues (max 3 rounds).
    block forwarded by the calling skill.
 
    **With a Task card** — the handoff replaces "implement now", so load
-   `move-task` and ask:
+   `move-task` and ask. **Read `list_board` and name the columns the way that board labels
+   them** — do not paste a column word from this skill. A card arriving here is usually *already*
+   in the parking lane its `<task stage="…">` names, so "move the card to Approved" is a no-op
+   question, and a Space owner can rename that column to anything (`Ready for Build`, `Approved`,
+   `Groomed` — all the same `slug`). Name the lane the card is in and the destination the arrows lead
+   to, both from the rows. Keep the `id` spelling the board matches on:
 
    ```
    ask({
      questions: [{
        id: "move-to-approved",
-       question: "The plan is attached to the card as its `plan` artifact. Move the card to Approved and hand implementation to a fresh Session?",
+       question: "The plan is attached to the card as its `plan` artifact. The card is in \"<real label of its current stage>\". Claim this Session done so the card advances to \"<real label of the destination>\" and a fresh Session picks it up?",
        options: [
-         { label: "Move to Approved — I'll archive this session and launch from the board (recommended)" },
+         { label: "Claim done — advance to \"<real destination label>\" (recommended)" },
          { label: "No — keep the card where it is" },
          { label: "Revise the plan first" }
        ]
@@ -371,8 +383,13 @@ Fix issues (max 3 rounds).
    })
    ```
 
-   On **Move to Approved**: that skill attaches the artifacts and verifies with `get_task`.
-   Approved is **forward**, and forward is not `move_task`'s door — a model's forward
+   Never promise what the claim will do. The rows give you `slug` and `label`; the `auto` flag and
+   the destination's `on_enter_skill` decide whether the card actually moves and what launches, and
+   `move-task` forbids naming a Skill you have not read there. Say "hand it forward", not "it will
+   start implementing".
+
+   On the **advance** option: that skill attaches the artifacts and verifies with `get_task`.
+   The destination is **forward**, and forward is not `move_task`'s door — a model's forward
    `move_task` is refused (even on a default, unconfigured board) and its refusal names
    `mark_done`. So the hand-off is **`mark_done`**: it flags this Session as done and, if the
    column it points at is automatic, advances the card and launches the next Session itself.
@@ -420,5 +437,7 @@ Fix issues (max 3 rounds).
 | Omitting the `## Parallelisation` verdict | `implement` reads a missing verdict as SERIAL. Declare SERIAL with a reason — a missed parallel opportunity is invisible; a wrong one is not |
 | Declaring a wave because the tasks are *logically* independent | Independence of features is not disjointness of paths. `routes.py`, a shared fixture, or a `mod.rs` collide regardless of how separate the features feel |
 | Letting a wave child certify the combination | Its own worktree proves its own task and cannot see a sibling's. The integrated suite after fan-in is the only measurement of the wave together — and prove it ran tests: a package with no discovered test files still exits 0 |
+| Asking the user to "move the card to Approved" | Read `list_board` and name the real labels. The card is usually already in that lane, and the column may not be called Approved. Forward is `mark_done`; name the destination, promise nothing about what launches |
+| Treating a fix to a plan as verified because a reviewer asked for it | The fix is a new edit. Send it back through a round scoped to "verify these fixes + did the fold-in break anything" |
 
 More parallelisation mistakes and worked examples: **[Parallelisation Guide](guides/guide-parallelisation.md)**.

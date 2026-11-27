@@ -53,8 +53,9 @@ Subagents the skills dispatch by name:
 
 - An agent harness that loads `SKILL.md` skills and `agents/*.md` subagents.
 - For card-backed work: a Task board that exposes `list_board`, `get_task`, `get_artifact`,
-  `write_artifact`, `edit_task` and `move_task`. Without one, a plan lives only in scratch on the
-  machine where it was written, and the skills say so.
+  `write_artifact`, `edit_task`, `move_task` and `mark_done` (`mark_done` is the only door a card
+  moves **forward** through; `move_task` is backward and sideways). Without one, a plan lives only in
+  scratch on the machine where it was written, and the skills say so.
 - `git` and, for PR steps, the `gh` CLI.
 
 ## Install

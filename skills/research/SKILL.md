@@ -17,7 +17,8 @@ Turn an unclear question into a decision you can defend — either by gathering 
 (**Path A**) or by talking through the design with the person (**Path B**). Both start the
 same way: ask what the user actually means before doing any work.
 
-Neither path writes code, and neither hands off to implementation on its own.
+Neither path writes code, neither loads another skill, and neither hands off to implementation. Each
+one ends by writing its document, attaching it to the card, and calling `mark_done`.
 
 ## Architecture
 
@@ -32,7 +33,7 @@ Main agent (YOU)
   │     ├── Phase 2: Dispatch N parallel researcher subagents   ← pure leaves
   │     ├── Phase 3: Synthesise all findings
   │     ├── Phase 4: HARD STOP — present draft + ask            ← required
-  │     └── Phase 5: Deliver (report → card → tracker → route)
+  │     └── Phase 5: Deliver (report → card → tracker → mark_done)
   │
   └── Path B — DESIGN
         ├── B0: Pre-check the existing doc (don't re-run a finished design)
@@ -41,16 +42,17 @@ Main agent (YOU)
         ├── B3: Clarifying questions — one at a time via ask
         ├── B4: 2-3 approaches with trade-offs + recommendation
         ├── B5: Present the design section by section, approval per section
-        └── B6: Design approved → route (specify, or implement's COARSE path)
+        └── B6: Design approved → write the design doc + card → mark_done
 ```
 
 **You own all orchestration.** Researcher subagents are leaves — one targeted angle each, they never
 plan, dispatch, or synthesise. No nesting.
 
-Neither path writes the **plan**. `specify` is the single writer of the plan, and it writes the spec and
-the plan in one pass, attached to the Task card as its `plan` artifact. This skill produces the *evidence* and the *approved design*
-that `specify` formalises. That division is what stops two skills from writing one document
-differently.
+**This skill ends where its own document ends.** It writes its output — the research report, or the
+approved design — to the repo and attaches it to the Task card, then calls `mark_done`. It loads no
+other skill. `specify` is the writer of the **plan**, and it is started by a fresh session from the
+card, not by this one. That division is what stops two skills from writing one document differently,
+and it is what keeps a research session from rolling on into planning nobody approved yet.
 
 ## Which path?
 
@@ -59,7 +61,7 @@ differently.
 | **The gap is** | Facts you don't have | Intent you don't have |
 | **Typical ask** | "Compare X and Y", "how does X work", "is this library viable", "what do others do" | "Let's discuss X", "design a feature for Y", "brainstorm Z" |
 | **Answer comes from** | Sources — web, code, papers, dispatched researchers | The user — through questions and trade-offs |
-| **Ends with** | A cited report + a routing ask | An approved design + a routing ask |
+| **Ends with** | A cited report on disk + its path on the card, then `mark_done` | An approved design doc on disk + its path on the card, then `mark_done` |
 
 **Choose on what's missing, not on the verb.** "Should we use Postgres or Postgres + pgvector?" is
 Path A even though the user said "should we" — the answer is in the world, not in their head.
@@ -232,42 +234,61 @@ ask({
     id: "research-next",
     question: "Draft ready. What next?",
     options: [
-      { label: "Write the report, then load specify — spec + plan from these findings (recommended)" },
+      { label: "Write the report and attach it to the card — done (recommended)" },
       { label: "Just talk — stop and let me react to the findings" },
-      { label: "Write the report only — deliver it, decide later" },
-      { label: "Move to Approved — deliver, then hand the card to a fresh Session" },
+      { label: "Hand it forward — deliver, then move the card to \"<real label of the next column>\"" },
       { label: "Targeted deep-dive on specific gaps" },
       { label: "Add a research dimension" },
-      { label: "Reframe the question" },
-      { label: "Decompose and run in waves — implement's multi-task path" }
+      { label: "Reframe the question" }
     ],
     multi: true,
-    description: "**Write the report + specify:** the report is the evidence, then specify turns the chosen answer into the spec AND the implementation plan in one pass.\n**Just talk:** stop. The findings stay in this session and you drive — no skill is loaded, nothing is written.\n**Move to Approved:** deliver, then hand the card to a fresh Session. Only offered when a `<task>` block was found.\n**Deep-dive / Add dimension / Reframe:** more research.\n**Decompose and run in waves:** only when the findings imply multiple separate implementation tracks."
+    description: "**Write the report:** the report is the deliverable — it goes to docs/research/, its path goes on the card, and the session is handed to you for review. Planning is a later session's job.\n**Just talk:** stop. The findings stay in this session and you drive — nothing is written.\n**Hand it forward:** deliver, then hand the card to a fresh Session. Only offered when a `<task>` block was found.\n**Deep-dive / Add dimension / Reframe:** more research."
   }]
 })
 ```
 
 **Compose rules:**
-- **"Move to Approved" only when a `<task id="tsk_…">` block was found** — an option that cannot run is
+- **Name that third option from the board, not from this file.** Call
+  `list_board(space_path)` — `space_path` is your working directory, pass your cwd, do not
+  reconstruct it — and take as the destination **the next stage row after the card's current one**
+  (rows come back in board order, and an unconfigured board's next step is `sort_order + 1`); the
+  card's own stage is in the `<task stage="…">` attribute. The rows carry no edge data, so this is the
+  *likely* destination, not a proven one — say "hand it forward" and let `mark_done`'s answer name
+  where it actually landed. Never print the word "Approved" at the user — column
+  **labels are owner-editable per Space** (the `approved` slug has shipped as "Approved", "Ready for
+  Build", "Groomed"), and the option must say what the user will actually see. If the card's stage is
+  already the last parking lane before work starts, name the destination the arrows lead to anyway —
+  do not turn the option into "move the card to where it already is".
+- **"Hand it forward" only when a `<task id="tsk_…">` block was found** — an option that cannot run is
   a dead control. It composes with "Write the report" (delivering is a prerequisite, not an alternative).
-- **"Move to Approved" does NOT compose with "Just talk" or either handoff** — those continue work in
-  *this* session; the move ends it. If both come back selected, ask once which was meant. Do not
-  resolve it by picking one silently.
-- **"Just talk" is a real answer, not a stall.** It writes nothing and loads nothing. Do not quietly
-  continue into `specify` because the findings "obviously" imply a design.
+- **No card → drop "to the card" from the first option's label** ("Write the report — done"), since the
+  attach step cannot run; Phase 5's no-card branch covers it.
+- **"Hand it forward" does NOT compose with "Just talk"** — that continues work in *this* session; the
+  move ends it. If both come back selected, ask once which was meant. Do not resolve it by picking one
+  silently.
+- **"Just talk" is a real answer, not a stall.** It writes nothing. Do not quietly write the report, and
+  do not keep going into planning because the findings "obviously" imply one.
+- **No option here loads another skill.** If the user asks for a spec or a plan, say the report path is
+  the handoff and that a session started from the card picks it up; offer to name the next step in the
+  report's Gaps section. Do not load `specify` or `implement`.
 
 ## Phase 5: Deliver (after `ask()` responds)
 
+Every path below ends the same way once its writes are done: **call `mark_done`** — it flags this
+Session as finished, hands it to a person for review, and **it is the only way this card moves
+forward**. Its one optional argument `outcome` names which transition to follow when this column has
+more than one wired out of it; leave it out to take the first. Read its answer — it names the column
+the card advanced to, or says plainly why the card stayed where it was. It is the last call of
+the session. Nothing is loaded after it.
+
 | Choice | Action |
 |---|---|
-| **Write the report, then specify** | 1. Write the report to `docs/research/<descriptive-name>.md` (front-matter below). **Do NOT re-print it — the draft was already shown.** 2. Attach its **path** to the card (location attachment: the body is the repo path, not the report's contents) and set `spec_path` to the same path — [Durable Capture](guides/guide-durable-capture.md), key `research`. Run this **before** loading `specify`. 3. **Clear the todo list**, then load `specify` with: the report path, the chosen answer, and **the `<task>` block forwarded verbatim** if one exists. `specify` is loaded mid-session, never sees the block, and is the only skill that writes the doc — so an unforwarded id means the doc lands with no `task:` key and the card chain dead-ends. |
-| **Just talk** | **Stop.** Say one line — findings are above, I'm here. Write nothing, load nothing. The user drives from here. |
-| **Write the report only** | Write + attach as above, then stop. Tracker mirror is the ask in [Durable Capture](guides/guide-durable-capture.md). |
-| **Move to Approved** | Deliver first. Then load `move-task`: attach artifacts, read the Approved slug off `list_board`, `move_task`, verify with `get_task`, tell the user to **archive this session** and click the card's **arrow pill**. **Then stop — do not load `specify` or `implement`.** |
+| **Write the report and attach it** (default) | 1. Write the report to `docs/research/<descriptive-name>.md` (front-matter below). **Do NOT re-print it — the draft was already shown.** 2. Make sure git tracks it (`git ls-files --error-unmatch <path>`; add it on the working branch if not). 3. Attach its **path** to the card (location attachment: the body is the repo path, not the report's contents) and set `spec_path` to the same path — [Durable Capture](guides/guide-durable-capture.md), key `research`. 4. Offer the tracker mirror — the ask in [Durable Capture](guides/guide-durable-capture.md); skip when no tracker was found. 5. **Clear the todo list**, state the report path in one line, then `mark_done`. |
+| **Just talk** | **Stop.** Say one line — findings are above, I'm here. Write nothing. The user drives from here. No `mark_done`: the session is not finished, the user is still reacting. |
+| **Hand it forward** | Deliver first (steps 1–4 above). The next column is **forward**, and forward is `mark_done`, not `move_task` — so load `move-task` for the artifact checkpoint, attach everything and verify with `get_task`, then **`mark_done`**: that claim *is* the forward move. Read its answer: it names the column the card advanced to, or says the column is not automatic and a person moves it (the card carries an amber bell). Tell the user the destination by the **label from `list_board`**, never by a slug or the word "Approved". Do **not** `move_task` to it — a forward `move_task` is refused even on a default board. **Then stop — do not load `specify` or `implement`.** |
 | **Targeted deep-dive** | Dispatch more researchers on the named gaps → re-synthesise → Phase 4 |
 | **Add a dimension** | Dispatch a new angle → re-synthesise → Phase 4 |
 | **Reframe** | Back to Phase 0 with the revised question |
-| **Decompose and run in waves** | Only when the findings imply multiple separate tracks: load `implement` with those tracks as the approved block — **and the `<task>` block verbatim**, since `implement` never sees it and has no spec doc to read an id from. It takes its COARSE path and runs its own consent question. |
 
 Report front-matter (always):
 
@@ -284,12 +305,25 @@ Sections: Executive Summary · Findings (by question, every claim cited) · Evid
 credibility) · Unresolved Contradictions · Gaps. If this supersedes an older report, set the old
 file's `status: superseded` and link forward.
 
+**The Gaps section is the handoff.** When the findings point at work to do, name the next step there in
+one line ("plan the migration from this report — start with the lock-ordering finding"). A later session
+starts from the card, reads `spec_path`, and finds it. That replaces any mid-session handoff: the card is
+the bridge, not a skill loaded on top of this one.
+
+**No card** (no `<task>` block): write the report, then say in one line that it has no card, so nothing is
+attached and no `spec_path` was set — per [Durable Capture](guides/guide-durable-capture.md), offer to
+create a card for it and only create one on the user's say-so. Either way `mark_done` afterwards: the file
+on disk is still the deliverable. Never fall back to the repo for a *plan*; the report already lives in
+the repo.
+
 ---
 
 # Path B — DESIGN
 
-Turn an idea into an approved design through dialogue. No code, no plan, no spec written here —
-`specify` writes the document.
+Turn an idea into an approved design through dialogue. No code and no **plan** here — the plan (the
+numbered HOW-IN-ORDER tasks) belongs to `specify`, in a session started from the card. What this path
+*does* write is the approved design itself: a design doc in `docs/research/`, its path on the card, then
+`mark_done`. That doc is the handoff `specify` reads.
 
 ## B0. Pre-check the existing doc (before the design flow)
 
@@ -298,25 +332,21 @@ Look for the existing plan and branch on its front-matter `status`. With a card,
 - **No plan found** → run the design flow (B1–B6).
 - **`status: approved`** (a spec, no plan yet) → the design is done; **do not re-run the flow.**
   **Wording rule — spec ≠ plan:** a *spec* is the WHAT/WHY (behavior + design); a *plan* is the
-  HOW-IN-ORDER (numbered tasks with TDD steps and verification commands). Word the offer as "expand
-  the spec into the plan", never "create the implementation plan" — a spec already exists, so the
-  second reads like a redo.
+  HOW-IN-ORDER (numbered tasks with TDD steps and verification commands). The task-level plan is
+  `specify`'s work in its own session, so never offer it from here — offer only what this skill can do.
   ```
   ask({ questions: [{ id: "next-step",
-    question: "The approved spec is attached to the card as its `plan` artifact — design done, no plan yet. What next?",
+    question: "The approved spec is attached to the card as its `plan` artifact — design done, no plan yet. Planning happens in a session started from the card. What should this session do?",
     options: [
-      { label: "Plan it — expand the spec into the task-level plan (load specify; a new artifact, not a redo)" },
-      { label: "Run a reviewer on the spec" },
-      { label: "Mirror the spec to the tracker and attach the artifact" },
+      { label: "Mirror the spec to the tracker and verify the artifact — then done" },
       { label: "Revise the design" },
       { label: "No action for now" }
     ] }] })
   ```
-- **`status: committed`** (a plan exists) → do not re-run the design flow and do not offer "plan it".
-  Ask whether to approve the current plan (`Yes — refine + approve via specify` / `No — hold` /
-  `Revise first`). **Approving runs it through `specify`'s FULL flow — no shortcut:** `specify`
-  re-reads, refines, runs its reviewer, and its HARD BREAK is the approval. Do not load `implement`
-  from this branch.
+  Mirror or revise → do it, then `mark_done`. No action → stop without writing.
+- **`status: committed`** (a plan exists) → do not re-run the design flow, do not offer to plan, and do
+  not approve anything: approval is `specify`'s HARD BREAK, in its own session. Offer `Revise the design`
+  / `Mirror to the tracker` / `No action for now`, say where the plan lives, and end on `mark_done`.
 
 ## B1. Settle the domain language first
 
@@ -356,51 +386,62 @@ Multiple-choice options. One question per `ask` call.
 > [Durable Capture](guides/guide-durable-capture.md) — capture inline, don't batch, and don't force it
 > when neither applies.
 
-## B6. Design approved → route
+## B6. Design approved → write it, attach it, `mark_done`
 
-Present the full design once, in chat. **Do not write the plan here** — `specify` writes it, spec and plan
-in one pass, so there is exactly one writer of the plan.
+Present the full design once, in chat. **Do not write the plan here** — the plan is the numbered
+task-level breakdown, and `specify` is its only writer, in its own session. What you write now is the
+*design*: the WHAT/WHY the next session plans from.
 
-Evaluate scope now — the count of independent design sections, and whether the work fits one PR:
+1. **Write the design doc** to `docs/research/<topic>-design.md` with the same front-matter as a research
+   report (`status: current`, `last-verified`, `task: <task_id>` when a card exists). Sections: the settled
+   terminology, the approach chosen and why, the rejected options with their trade-offs, the boundaries
+   and interfaces, and an **Open questions / next step** section naming what planning must decide.
+   Name the `<topic>` in one line so the next session names its scratch dir and card key the same way.
+2. **Track it** — `git ls-files --error-unmatch <path>`, add it on the working branch if untracked.
+3. **Attach its path** to the card as a location attachment and set `spec_path` to the same path —
+   [Durable Capture](guides/guide-durable-capture.md). Key: `research` when this run produced no report
+   of its own; if a Path A report is already attached under `research`, use the `<topic>` key instead and
+   leave `research` pointing at the report — never collapse two documents into one key.
+4. **Offer the tracker mirror** — the ask in [Durable Capture](guides/guide-durable-capture.md); skip when
+   no tracker was found.
+5. **Clear the todo list**, say the doc path in one line, then **`mark_done`**. Planning is the next
+   session's job: it starts from the card, reads `spec_path`, and finds the design there.
 
-- **Small — ≤2 items AND fits one PR AND no "unattended" intent** → hand to `specify` silently.
-  **Clear the todo list**, then load `specify` with: the approved design summarised in chat, the
-  `<task>` block **verbatim** if B0/shared-foundations found one, and the topic name (so its scratch file and
-  card key are named the same way). No "what next" ask — this silence is deliberate: `specify`'s HARD BREAK asks
-  about the card when it knows one, so asking here would ask twice.
-- **HUGE — ≥3 items OR spans sessions OR user said "run unattended / do all"** → one `ask`:
-  ```
-  ask({ questions: [{ id: "route",
-    question: "Large enough to split into a tracked multi-task run. Decompose and run in waves, or plan it as one shot?",
-    options: [
-      { label: "Decompose and run in waves — implement's multi-task path (recommended)" },
-      { label: "Specify — one plan, one PR" },
-      { label: "Hold" }
-    ] }] })
-  ```
-  - **Waves** → clear the todo list, load `implement` with the approved design and **the `<task>` block
-    verbatim**; it takes its COARSE path and runs its own consent question.
-  - **Specify** → the small-scope handoff above.
-  - **Hold** → nothing is written; the design lives in this session. **If a card is known**, that is
-    what `move-task` exists for — offer it via `ask` before stopping, then stop. No card →
-    just stop.
+Do not load `specify` or `implement` from here, whatever the scope. If the user asks for a plan or waves
+now, say the design is on the card and the card's arrow pill starts a session that plans it; if they want
+a card move, offer `move-task` — but a move **forward** out of this column is not `move_task`'s door:
+that verb is refused for forward moves and its refusal names `mark_done`. So a forward hand-off is the
+`mark_done` you are about to call anyway (read its answer: it names where the card went, or says a
+person moves it), and `move_task` is only for a backward or sideways move, which starts nothing. Then
+`mark_done`.
 
-**If the user asks to revise:** go back to the section that needs rework, re-approve, then route.
+**No card:** write the design doc (steps 1–2), say in one line that nothing is attached because no card
+exists, and `mark_done`.
 
-**If the user wants to stop:** stop. Nothing was written, by design — `specify` owns the document. If
-this run produced an ADR or glossary terms, those were already captured (B5), and if it attached
-anything to a card, that already happened.
+**If the user asks to revise:** go back to the section that needs rework, re-approve, then re-run the
+steps above — the doc is the same file, and `write_artifact` upserts the path.
+
+**If the user wants to stop before approval:** stop. Nothing is written — an unapproved design is not a
+deliverable. If this run produced an ADR or glossary terms, those were already captured (B5). No
+`mark_done` on this branch: the design is unfinished and the user still owns it.
 
 ## The hard gate (both paths)
 
 > 🚫 **No code, no `implement`, no implementation skill — until a human has approved, and approval
 > does not decay into a continuation.**
 
-After approval this skill still does not implement. The next decision point belongs to another skill:
-`specify`'s HARD BREAK, or `implement`'s one-time consent question (autonomous vs check-in). Only an
-explicit confirmation from the user — or one of those — ever leads to implementation work. This is the
-one rule that survives every restructuring of this skill, because every failure mode it prevents is a
-session that got confident and kept going.
+After approval this skill still does not implement, and it does not plan. It writes its own document,
+attaches it, and calls `mark_done`. The next decision point belongs to another skill in another session —
+`specify`'s HARD BREAK, or `implement`'s one-time consent question (autonomous vs check-in) — reached by
+starting that session from the card. Only an explicit confirmation from the user — or one of those — ever
+leads to implementation work. This is the one rule that survives every restructuring of this skill,
+because every failure mode it prevents is a session that got confident and kept going.
+
+`mark_done` is where this session ends. It flags the Session as done and hands it to a person for
+review, and it is the only door a **forward** card move goes through. Its one optional argument
+`outcome` names which transition to follow when the column has more than one; omit it to take the
+first. It is called **after** the writes, never instead of them, and never on a branch that
+wrote nothing ("just talk", a design abandoned before approval).
 
 ---
 
@@ -445,7 +486,9 @@ an approach comparison) · deep = 4-6 ("should we use X or Y?", architecture).
 | Source paywalled / stale | Note it; try an archive; flag as a gap ([Stale Sources](guides/guide-stale-sources.md)) |
 | Depth misjudged | User catches it at the Phase 4 hard stop and chooses deep-dive |
 | Kept going after the answer | Phase 4 is a hard stop. Present, ask, **wait** |
-| Design ran, nothing written | Correct — `specify` writes the doc. Route at B6 |
+| Loaded `specify` / `implement` at the end | Wrong. Write the doc, attach the path, `mark_done`. The card is the bridge to the next session |
+| Finished with no report on disk and no card attachment | The findings die with the session. Deliver (Phase 5 steps 1–4), then `mark_done` |
+| Design ran, nothing written | Wrong on both counts — an approved design is written (B6); a design that never got approval writes nothing and stops |
 
 **When to stop** researching is a judgement, not a budget: [When to Stop](guides/guide-when-to-stop.md).
 Before publishing, self-check: [Research Quality Checklist](checklists/checklist-research-quality.md).
@@ -460,5 +503,6 @@ Report skeleton: [Report Template](assets/research-report-template.md).
 - **Follow established patterns** in existing codebases.
 - **Scale detail to complexity** — a few sentences if simple, more if nuanced.
 - **Capture decisions and terminology inline** — don't batch, don't skip, don't force.
-- **One writer for the plan.** This skill never writes the plan, to scratch, to the card, or to the repo. `specify` does.
-- **Repo for reports, card for plans.** A research report goes in `docs/research/` and is attached to the card. A plan goes on the card only.
+- **One writer for the plan.** This skill never writes the plan, to scratch, to the card, or to the repo. `specify` does, in its own session.
+- **Repo for reports, card for plans.** A research report or design doc goes in `docs/research/` and the card holds its path. A plan goes on the card only.
+- **End the session, don't chain it.** Deliver, attach, then `mark_done`. Loading the next skill mid-session is how one run turns into three documents nobody approved in order.

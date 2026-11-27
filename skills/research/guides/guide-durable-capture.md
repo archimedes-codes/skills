@@ -27,6 +27,7 @@ feature closeouts, the glossary. The card does not copy them. It stores a **poin
 | Grounding report per area (`implement`) | **Scratch only** — re-derivable from the tree | — |
 | Follow-ups (`implement`) | **Card only**, folded into a repo doc before ship | `follow-ups` |
 | Research report (`research`) | **Repo** `docs/research/<name>.md`. Card holds its **path** | `research` |
+| Approved design doc (`research` Path B) | **Repo** `docs/research/<topic>-design.md`. Card holds its **path** | `research`, or `<topic>` when a report already holds `research` |
 | ADR (`research`) | **Repo** `docs/decisions/NNNN-slug.md`. Card holds its **path** | `adr-NNNN` |
 | Feature closeout | **Repo** `docs/features/<topic>.md`. Card holds its **path** | `<topic>` |
 | Glossary terms | **Repo** `CONTEXT.md` | — |
